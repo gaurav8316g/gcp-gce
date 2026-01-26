@@ -1,0 +1,25 @@
+# Local .terraform directories
+**/.terraform/*
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+# .tfvars files (Sensitive information)
+*.tfvars
+*.tfvars.json
+
+# Specifically ignore the default tfvars file
+terraform.tfvars
+
+# Backend configuration files (may contain sensitive bucket names or paths)
+backend.conf
+
+# .terraform.lock.hcl is usually committed, but some teams prefer to ignore it
+.terraform.lock.hcl
+
+# Log files
+*.log
+
+# Execution documentation (contains specific account/project info)
+01-EXCECUTION.md

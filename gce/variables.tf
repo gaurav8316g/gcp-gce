@@ -20,6 +20,18 @@ variable "terraform_service_account" {
   type        = string
 }
 
+variable "create_linux_vm" {
+  description = "Whether to create the Linux VM"
+  type        = bool
+  default     = true
+}
+
+variable "create_windows_vm" {
+  description = "Whether to create the Windows VM"
+  type        = bool
+  default     = false
+}
+
 variable "instance_name" {
   description = "The name of the GCE instance"
   type        = string
@@ -30,6 +42,18 @@ variable "machine_type" {
   description = "The machine type for the instance (e2-micro is cheapest)"
   type        = string
   default     = "e2-micro"
+}
+
+variable "windows_instance_name" {
+  description = "The name of the Windows VM"
+  type        = string
+  default     = "minimal-windows-vm"
+}
+
+variable "windows_machine_type" {
+  description = "The machine type for Windows (e2-medium is recommended minimum)"
+  type        = string
+  default     = "e2-medium"
 }
 
 variable "network_project_id" {

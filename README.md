@@ -1,20 +1,21 @@
 # GCP GCE Terraform Project
 
-This project automates the deployment of a cost-optimized Linux VM on Google Cloud Platform using Terraform. It features service account impersonation, Shared VPC integration, and automated Nginx setup via startup scripts.
+This project automates the deployment of cost-optimized Linux and Windows VMs on Google Cloud Platform using Terraform. It features service account impersonation, Shared VPC integration, and automated setup.
 
 ## 🏗 Project Architecture
 
 - **Security**: Uses Service Account Impersonation (no local keys).
 - **Network**: Deploys into a Shared VPC (Private IP only by default).
-- **Cost**: Uses `e2-micro` instances with `SPOT` provisioning.
+- **Cost**: Uses `e2-micro` (Linux) and `e2-medium` (Windows) instances with `SPOT` provisioning.
 - **State**: Remote state management via GCS.
+- **Flexibility**: Toggle VM creation using boolean flags.
 
 ---
 
 ## 🚀 Quick Start Guide
 
 ### 1. Environment Preparation
-Configure your local `gcloud` environment to match the target project.
+Configure your local `gcloud` environment.
 
 ```bash
 # 1. Switch to your project profile
@@ -44,13 +45,26 @@ gcloud iam service-accounts add-iam-policy-binding <TF_SERVICE_ACCOUNT_EMAIL> \
     --role="roles/iam.serviceAccountTokenCreator"
 ```
 
+#### Configure Firewall for IAP (Host Project)
+Required to allow SSH (22), HTTP (80), and RDP (3389) traffic via IAP.
+```bash
+gcloud compute firewall-rules create allow-iap-ingress-all \
+    --project <HOST_PROJECT_ID> \
+    --network <VPC_NAME> \
+    --direction INGRESS \
+    --action ALLOW \
+    --source-ranges 35.235.240.0/20 \
+    --rules tcp:22,tcp:80,tcp:3389 \
+    --description "Allow IAP ingress for SSH, HTTP, and RDP"
+```
+
 ### 3. Local Configuration
-The project uses `.gitignore` to protect sensitive values. Follow these steps to configure your local environment:
+The project uses `.gitignore` to protect sensitive values.
 
 1. **Initialize Variables**:
    ```bash
    cp gce/terraform.tfvars.example gce/terraform.tfvars
-   # Edit gce/terraform.tfvars with your actual values
+   # Edit gce/terraform.tfvars with your actual values (e.g., set create_windows_vm = true)
    ```
 2. **Configure Backend**:
    Create `gce/backend.conf` with your state bucket:
@@ -74,54 +88,59 @@ terraform apply
 
 ## ✅ Verification & Access
 
-Since the VM is deployed without a public IP, use one of the following methods to verify the installation.
-
-### Method 1: Local Browser (IAP Port Forwarding)
-The most convenient way to see the Nginx "Client Demo" page in your local browser.
+### Linux VM (Method 1: Local Browser via IAP)
 1. Run the tunnel command:
    ```bash
-   gcloud compute ssh <INSTANCE_NAME> \
+   gcloud compute ssh <LINUX_INSTANCE_NAME> \
        --project <TARGET_PROJECT_ID> \
        --zone <ZONE> \
        --tunnel-through-iap \
        -- -L 8080:localhost:80
    ```
-2. Open your browser and visit: `http://localhost:8080`
+2. Visit: `http://localhost:8080`
 
-### Method 2: SSH & Local Curl (Direct)
-Verify the web server directly from within the VM.
-1. SSH into the instance:
-   ```bash
-   gcloud compute ssh <INSTANCE_NAME> \
-       --project <TARGET_PROJECT_ID> \
-       --zone <ZONE> \
-       --tunnel-through-iap
-   ```
-2. Run curl:
-   ```bash
-   curl localhost
-   ```
+### Windows VM (Method 2: RDP via IAP)
 
-### Method 3: Internal VPC Test
-Test connectivity from another VM within the same Shared VPC.
-1. Get the private IP: `terraform output private_ip`
-2. From another VM in the VPC, run:
-   ```bash
-   curl <PRIVATE_IP>
-   ```
+#### 1. Generate Windows Password
+Windows instances do not have a default password. You must generate one:
+```bash
+gcloud compute reset-windows-password <WINDOWS_INSTANCE_NAME> \
+    --project <TARGET_PROJECT_ID> \
+    --zone <ZONE> \
+    --user admin
+```
+*Note: Save the password returned by this command.*
+
+#### 2. Start IAP Tunnel
+Run this in your local terminal to bridge RDP traffic:
+```bash
+gcloud compute start-iap-tunnel <WINDOWS_INSTANCE_NAME> 3389 \
+    --project <TARGET_PROJECT_ID> \
+    --zone <ZONE> \
+    --local-host-port=localhost:3389
+```
+*Keep this terminal window open during your session.*
+
+#### 3. Connect via RDP Client
+- **From macOS**: 
+  1. Install **Microsoft Remote Desktop** from the App Store.
+  2. Add a new PC with PC name: `localhost:3389`.
+  3. Use Username: `admin` and the generated password.
+- **From Windows**: 
+  1. Use the built-in **Remote Desktop Connection** (mstsc).
+  2. Connect to `localhost:3389`.
+  3. Alternatively, use [IAP Desktop](https://github.com/GoogleCloudPlatform/iap-desktop) for an automated experience.
 
 ---
 
 ## 🛠 Required IAM Roles
 
-### Terraform Service Account
-The service account specified in `terraform_service_account` requires:
-
-| Role                             | Scope                 | Purpose                      |
-| :------------------------------- | :-------------------- | :--------------------------- |
-| `roles/compute.instanceAdmin.v1` | `<TARGET_PROJECT_ID>` | Create/Manage VM instances   |
-| `roles/compute.networkUser`      | `<HOST_PROJECT_ID>`   | Access Shared VPC subnets    |
-| `roles/storage.objectAdmin`      | `<STATE_BUCKET_NAME>` | Manage Terraform state files |
+| Role                               | Scope                 | Purpose                      |
+| :--------------------------------- | :-------------------- | :--------------------------- |
+| `roles/compute.instanceAdmin.v1`   | `<TARGET_PROJECT_ID>` | Create/Manage VM instances   |
+| `roles/compute.networkUser`        | `<HOST_PROJECT_ID>`   | Access Shared VPC subnets    |
+| `roles/storage.objectAdmin`        | `<STATE_BUCKET_NAME>` | Manage Terraform state files |
+| `roles/iap.tunnelResourceAccessor` | `<TARGET_PROJECT_ID>` | Use IAP TCP forwarding       |
 
 ---
 
@@ -130,14 +149,16 @@ The service account specified in `terraform_service_account` requires:
 ```text
 .
 ├── README.md               # This guide
-├── .gitignore              # Prevents committing secrets/state
+├── .gitignore              # Prevents committing secrets/state/lock
 └── gce/                    # Terraform project directory
     ├── providers.tf        # GCP Provider & Impersonation config
-    ├── variables.tf        # Variable definitions
+    ├── variables.tf        # Variable definitions (incl. create_linux/windows_vm)
     ├── terraform.tfvars    # [LOCAL ONLY] Your secret values
+    ├── terraform.tfvars.example # Template for variables
     ├── backend.conf        # [LOCAL ONLY] State bucket config
-    ├── vm-instance.tf      # GCE Instance & Startup Script logic
-    ├── outputs.tf          # Instance details (Private IP, etc.)
+    ├── vm-instance.tf      # Linux Instance & Nginx Startup Script
+    ├── windows-vm.tf       # Windows Server Instance
+    ├── outputs.tf          # Instance details (Private IPs)
     └── main.tf             # Entry point placeholder
 ```
 
@@ -145,9 +166,6 @@ The service account specified in `terraform_service_account` requires:
 
 ## 🔍 Troubleshooting
 
-- **403 Permission Denied**: Ensure `iamcredentials.googleapis.com` is enabled and you have the `Token Creator` role.
-- **412 Precondition Failed**: Likely an Org Policy blocking External IPs. The current code defaults to Private IP only.
-- **IAP Connection**: To SSH into the private VM:
-  ```bash
-  gcloud compute ssh <INSTANCE_NAME> --tunnel-through-iap
-  ```
+- **403 Permission Denied**: Ensure `iamcredentials.googleapis.com` is enabled and you have the `Token Creator` role on the service account.
+- **4003 Failed to Connect**: Ensure the **Host Project** has a firewall rule allowing `35.235.240.0/20` on ports `22, 80, 3389`.
+- **IAP Tunnel Performance**: Install `NumPy` locally to increase TCP upload bandwidth for RDP.

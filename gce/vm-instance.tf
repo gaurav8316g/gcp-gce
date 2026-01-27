@@ -1,4 +1,5 @@
 resource "google_compute_instance" "minimal_vm" {
+  count        = var.create_linux_vm ? 1 : 0
   name         = var.instance_name
   machine_type = var.machine_type
   zone         = var.zone

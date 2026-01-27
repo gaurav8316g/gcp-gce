@@ -169,3 +169,9 @@ gcloud compute start-iap-tunnel <WINDOWS_INSTANCE_NAME> 3389 \
 - **403 Permission Denied**: Ensure `iamcredentials.googleapis.com` is enabled and you have the `Token Creator` role on the service account.
 - **4003 Failed to Connect**: Ensure the **Host Project** has a firewall rule allowing `35.235.240.0/20` on ports `22, 80, 3389`.
 - **IAP Tunnel Performance**: Install `NumPy` locally to increase TCP upload bandwidth for RDP.
+
+---
+
+## 🔗 References
+
+- [Terraform Google Provider Documentation](https://registry.terraform.io/providers/hashicorp/google/latest/docs) - Official documentation for all GCP resources.

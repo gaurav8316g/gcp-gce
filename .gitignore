@@ -1,6 +1,10 @@
 # Local .terraform directories
 **/.terraform/*
 
+# macOS system files
+.DS_Store
+**/ .DS_Store
+
 # .tfstate files
 *.tfstate
 *.tfstate.*
@@ -23,3 +27,4 @@ backend.conf
 
 # Execution documentation (contains specific account/project info)
 01-EXCECUTION.md
+02-Github-WIF.md

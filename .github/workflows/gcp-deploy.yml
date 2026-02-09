@@ -51,6 +51,5 @@ jobs:
       run: terraform plan
 
     - name: 'Terraform Apply'
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       working-directory: ./gce
       run: terraform apply -auto-approve
